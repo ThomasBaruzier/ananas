@@ -3561,8 +3561,6 @@ def remove_attributes(raw: str, keep_char_count: bool = True):
         raw = raw[:start] + (' ' * char_count) + raw[end:]
     return raw
 EOF
-
-cd "$dir"
 }
 
 main "$@"
