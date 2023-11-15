@@ -204,7 +204,7 @@ cd "$lib_dir/lib/vera++/rules" || fail
 mkdir -p 'utils/functions'
 touch '__init__.py'
 
-read -r -d './C-A3.py' << 'EOF'
+cat << EOF > './C-A3.py'
 import vera
 
 from utils import is_source_file, is_header_file, is_makefile, get_lines
@@ -223,7 +223,7 @@ def check_file_end():
 check_file_end()
 EOF
 
-read -r -d './C-C1.py' << 'EOF'
+cat << EOF > './C-C1.py'
 from dataclasses import dataclass
 
 import vera
@@ -301,7 +301,7 @@ def check_conditional_branching():
 check_conditional_branching()
 EOF
 
-read -r -d './C-C2.py' << 'EOF'
+cat << EOF > './C-C2.py'
 import vera
 
 from utils import is_source_file, is_header_file, ASSIGN_TOKENS, VALUE_MODIFIER_TOKENS, INCREMENT_DECREMENT_TOKENS, \
@@ -400,7 +400,7 @@ def check_ternary_operator():
 check_ternary_operator()
 EOF
 
-read -r -d './C-C3.py' << 'EOF'
+cat << EOF > './C-C3.py'
 import vera
 
 from utils import is_source_file, is_header_file
@@ -417,7 +417,7 @@ def check_goto_keyword():
 check_goto_keyword()
 EOF
 
-read -r -d './C-F2.py' << 'EOF'
+cat << EOF > './C-F2.py'
 import vera
 from utils import is_source_file, is_header_file, is_lower_snakecase
 from utils.functions import get_functions
@@ -438,7 +438,7 @@ def check_name_case():
 check_name_case()
 EOF
 
-read -r -d './C-F3.py' << 'EOF'
+cat << EOF > './C-F3.py'
 import vera
 from utils import get_lines
 from utils import is_header_file, is_source_file, is_makefile
@@ -469,7 +469,7 @@ def check_line_length():
 check_line_length()
 EOF
 
-read -r -d './C-F4.py' << 'EOF'
+cat << EOF > './C-F4.py'
 import vera
 from utils import is_source_file, is_header_file
 from utils.functions import get_functions
@@ -495,7 +495,7 @@ def check_function_body_length():
 check_function_body_length()
 EOF
 
-read -r -d './C-F5.py' << 'EOF'
+cat << EOF > './C-F5.py'
 import vera
 from utils import is_source_file, is_header_file
 from utils.functions import get_functions
@@ -519,7 +519,7 @@ def check_function_arguments():
 check_function_arguments()
 EOF
 
-read -r -d './C-F6.py' << 'EOF'
+cat << EOF > './C-F6.py'
 import vera
 from utils import is_source_file, is_header_file
 from utils.functions import get_functions
@@ -541,7 +541,7 @@ def check_no_empty_parameters_list():
 check_no_empty_parameters_list()
 EOF
 
-read -r -d './C-F7.py' << 'EOF'
+cat << EOF > './C-F7.py'
 import re
 
 import vera
@@ -594,7 +594,7 @@ def check_no_structure_copy_as_parameter():
 check_no_structure_copy_as_parameter()
 EOF
 
-read -r -d './C-F8.py' << 'EOF'
+cat << EOF > './C-F8.py'
 import vera
 
 from utils import is_source_file, is_header_file
@@ -619,7 +619,7 @@ def check_comment_inside_function():
 check_comment_inside_function()
 EOF
 
-read -r -d './C-F9.py' << 'EOF'
+cat << EOF > './C-F9.py'
 import itertools
 import vera
 
@@ -654,7 +654,7 @@ def check_nested_functions():
 check_nested_functions()
 EOF
 
-read -r -d './C-G1.py' << 'EOF'
+cat << EOF > './C-G1.py'
 import re
 
 import vera
@@ -691,7 +691,7 @@ def check_epitech_header():
 check_epitech_header()
 EOF
 
-read -r -d './C-G10.py' << 'EOF'
+cat << EOF > './C-G10.py'
 import vera
 
 from utils import is_source_file, is_header_file
@@ -709,7 +709,7 @@ def check_inline_assembly_usage():
 check_inline_assembly_usage()
 EOF
 
-read -r -d './C-G2.py' << 'EOF'
+cat << EOF > './C-G2.py'
 import vera
 
 from utils import is_source_file, is_header_file, get_lines
@@ -765,7 +765,7 @@ def check_empty_line_between_functions():
 check_empty_line_between_functions()
 EOF
 
-read -r -d './C-G3.py' << 'EOF'
+cat << EOF > './C-G3.py'
 from typing import List
 
 import vera
@@ -854,7 +854,7 @@ def check_preprocessor_directives_indentation():
 check_preprocessor_directives_indentation()
 EOF
 
-read -r -d './C-G4.py' << 'EOF'
+cat << EOF > './C-G4.py'
 import vera
 
 from utils import is_source_file, is_header_file
@@ -906,7 +906,7 @@ def check_global_variable_constness():
 check_global_variable_constness()
 EOF
 
-read -r -d './C-G5.py' << 'EOF'
+cat << EOF > './C-G5.py'
 import re
 
 import vera
@@ -930,7 +930,7 @@ def check_includes():
 check_includes()
 EOF
 
-read -r -d './C-G6.py' << 'EOF'
+cat << EOF > './C-G6.py'
 import vera
 
 from utils import is_header_file, is_source_file, is_makefile, get_lines
@@ -948,7 +948,7 @@ def check_carriage_return_character():
 check_carriage_return_character()
 EOF
 
-read -r -d './C-G7.py' << 'EOF'
+cat << EOF > './C-G7.py'
 import vera
 
 from utils import is_header_file, is_source_file, is_makefile, get_lines
@@ -968,7 +968,7 @@ def check_trailing_spaces():
 check_trailing_spaces()
 EOF
 
-read -r -d './C-G8.py' << 'EOF'
+cat << EOF > './C-G8.py'
 import vera
 
 from utils import is_header_file, is_source_file, is_makefile, get_lines, is_line_empty
@@ -1012,7 +1012,7 @@ def check_leading_and_trailing_lines():
 check_leading_and_trailing_lines()
 EOF
 
-read -r -d './C-H1.py' << 'EOF'
+cat << EOF > './C-H1.py'
 import vera
 from utils import is_source_file, is_header_file
 from utils.functions import get_functions, Function
@@ -1064,7 +1064,7 @@ check_forbidden_directives()
 check_functions()
 EOF
 
-read -r -d './C-H2.py' << 'EOF'
+cat << EOF > './C-H2.py'
 import re
 
 import vera
@@ -1116,7 +1116,7 @@ def check_double_inclusion_guards():
 check_double_inclusion_guards()
 EOF
 
-read -r -d './C-H3.py' << 'EOF'
+cat << EOF > './C-H3.py'
 import vera
 
 from utils import is_header_file, is_source_file
@@ -1146,7 +1146,7 @@ if __name__ == "__main__":
     check_macro_size()
 EOF
 
-read -r -d './C-L1.py' << 'EOF'
+cat << EOF > './C-L1.py'
 import vera
 
 from utils import is_source_file, is_header_file, CONTROL_STRUCTURE_TOKENS, ASSIGN_TOKENS, Token, \
@@ -1290,7 +1290,7 @@ def check_multiple_statements_on_one_line():
 check_multiple_statements_on_one_line()
 EOF
 
-read -r -d './C-L2.py' << 'EOF'
+cat << EOF > './C-L2.py'
 import re
 
 import vera
@@ -1435,7 +1435,7 @@ def check_global_scope(file: str, global_scope: List[Tuple[int, str]]) -> None:
 check_line_indentation()
 EOF
 
-read -r -d './C-L3.py' << 'EOF'
+cat << EOF > './C-L3.py'
 from typing import List
 
 import vera
@@ -1671,7 +1671,7 @@ def check_spaces():
 check_spaces()
 EOF
 
-read -r -d './C-L4.py' << 'EOF'
+cat << EOF > './C-L4.py'
 import re
 from typing import List
 
@@ -1924,7 +1924,7 @@ def check_curly_brackets_placement():
 check_curly_brackets_placement()
 EOF
 
-read -r -d './C-L5.py' << 'EOF'
+cat << EOF > './C-L5.py'
 import vera
 from utils import is_header_file, is_source_file
 from utils.functions import is_variable_declaration, for_each_function_with_statements, UnsureBool, skip_interval
@@ -1968,7 +1968,7 @@ def check_variable_declarations():
 check_variable_declarations()
 EOF
 
-read -r -d './C-L6.py' << 'EOF'
+cat << EOF > './C-L6.py'
 import vera
 from utils import is_header_file, is_source_file, is_line_empty
 from utils.functions import get_functions, get_function_statements, is_variable_declaration, get_function_body_tokens, \
@@ -2063,7 +2063,7 @@ def check_variable_declarations():
 check_variable_declarations()
 EOF
 
-read -r -d './C-O1.py' << 'EOF'
+cat << EOF > './C-O1.py'
 import re
 
 import vera
@@ -2173,7 +2173,7 @@ def check_delivery_files():
 check_delivery_files()
 EOF
 
-read -r -d './C-O3.py' << 'EOF'
+cat << EOF > './C-O3.py'
 import vera
 from utils import is_header_file, is_source_file
 from utils.functions import get_functions
@@ -2205,7 +2205,7 @@ def check_functions_count():
 check_functions_count()
 EOF
 
-read -r -d './C-O4.py' << 'EOF'
+cat << EOF > './C-O4.py'
 import re
 
 import vera
@@ -2225,7 +2225,7 @@ def check_file_name():
 check_file_name()
 EOF
 
-read -r -d './C-V1.py' << 'EOF'
+cat << EOF > './C-V1.py'
 import io
 import re
 
@@ -2457,7 +2457,7 @@ check_function_return_type()
 check_macro_names()
 EOF
 
-read -r -d './C-V3.py' << 'EOF'
+cat << EOF > './C-V3.py'
 import vera
 
 from utils import is_source_file, is_header_file, get_star_token_type, StarType, find_token_index
@@ -2508,7 +2508,7 @@ if __name__ == "__main__":
     check_pointer_attachments()
 EOF
 
-read -r -d './utils/__init__.py' << 'EOF'
+cat << EOF > './utils/__init__.py'
 import re
 from dataclasses import dataclass
 from os import path
@@ -2962,7 +2962,7 @@ def filter_out_non_semantic_tokens(tokens: List[Token]) -> List[Token]:
     return list(filter(lambda t: t.name not in NON_SEMANTIC_TOKENS, tokens))
 EOF
 
-read -r -d './utils/cache.py' << 'EOF'
+cat << EOF > './utils/cache.py'
 from functools import wraps
 
 
@@ -2996,7 +2996,7 @@ def cached_filename(func):
     return cached(lambda filename, *_, **__: filename)(func)
 EOF
 
-read -r -d './utils/functions/__init__.py' << 'EOF'
+cat << EOF > './utils/functions/__init__.py'
 import re
 from dataclasses import dataclass
 from enum import Enum
@@ -3432,7 +3432,7 @@ def for_each_function_with_statements(file: str, handler_func: Callable[[list[li
         handler_func(statements)
 EOF
 
-read -r -d './utils/functions/function.py' << 'EOF'
+cat << EOF > './utils/functions/function.py'
 from .section import Section
 
 class Function:
@@ -3483,7 +3483,7 @@ class Function:
         return len(self.arguments) + (1 if self.variadic else 0)
 EOF
 
-read -r -d './utils/functions/section.py' << 'EOF'
+cat << EOF > './utils/functions/section.py'
 class Section:
 
     # pylint: disable=R0913, R0902
@@ -3505,7 +3505,7 @@ class Section:
         return f'Section {self.line_start}:{self.column_start} to {self.line_end}:{self.column_end}'
 EOF
 
-read -r -d './utils/functions/utils.py' << 'EOF'
+cat << EOF > './utils/functions/utils.py'
 import re
 
 ATTRIBUTE_REGEX = re.compile(r"__attribute__\(\(\w*\)\)")
