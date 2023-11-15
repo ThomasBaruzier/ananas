@@ -135,7 +135,7 @@ setup() {
 
     if [ -x "$lib_dir/checker" ]; then
         echo -e "\n\e[1m> The command 'ananas' is ready to use.\e[0m\n"
-        [ "$delete_script" = true ] && rm -f "$0"
+        [ "$delete_script" = true ] && rm -f "$cur_dir/$0"
     else fail; fi
 }
 
