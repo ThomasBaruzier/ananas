@@ -46,8 +46,8 @@ get_su() {
 }
 
 main() {
-    bin_dir='/bin'
-    lib_dir='/lib/ananas'
+    bin_dir='/usr/bin'
+    lib_dir='/usr/lib/ananas'
 
     cur_dir=$(readlink -f "$0")
     cur_dir="${cur_dir%/*}"
