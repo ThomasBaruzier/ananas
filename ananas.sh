@@ -56,7 +56,11 @@ main() {
         mkdir -p "$bin_dir" "$lib_dir"
         cp "$0" "$bin_dir/ananas"
         chmod +x "$bin_dir/ananas"
-        delete_script=true
+        if [ -x "$lib_dir/checker" ]; then
+            echo -en '\n\e[1m> Ananas is already installed. '
+            echo -en "Please use the command 'ananas' to run it.\e[0m\n"
+            exit
+        fi
     fi
 
     if [ -x "$lib_dir/checker" ]; then
@@ -66,7 +70,7 @@ main() {
         setup
     fi
 
-    [ "$delete_script" = true ] && rm -f "$cur_dir/$0"
+    [ "$cur_dir" != "$bin_dir" ] && rm -f "$cur_dir/$0"
 }
 
 check() {
