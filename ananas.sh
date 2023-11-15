@@ -52,12 +52,13 @@ main() {
     cur_dir=$(readlink -f "$0")
     cur_dir="${cur_dir%/*}"
 
+    delete_script=false
     if [ "$cur_dir" != "$bin_dir" ]; then
         get_su "$@"
         mkdir -p "$bin_dir" "$lib_dir"
         cp "$0" "$bin_dir/ananas"
         chmod +x "$bin_dir/ananas"
-        rm -f "$0"
+        delete_script=true
     fi
 
     if [ -x "$lib_dir/checker" ]; then
@@ -86,7 +87,7 @@ check() {
 
     if [ -n "$output" ]; then
         echo -e "\n\e[0;1m> Ananas report: \e[0m\n"
-        write_errors
+        write_code_errors
         echo
     else
         echo -en "\n\e[0;1m> Ananas report: \e[0m"
@@ -96,7 +97,7 @@ check() {
     echo -e "- \e[32mMINOR: $minor \e[0m- \e[34mINFO: $info\e[0m\n"
 }
 
-write_errors() {
+write_code_errors() {
     while read -r line; do
         code="${line##*:}"
         [ "${line:0:2}" = './' ] && line="${line:2}"
@@ -134,40 +135,43 @@ setup() {
 
     if [ -x "$lib_dir/checker" ]; then
         echo -e "\n\e[1m> The command 'ananas' is ready to use.\e[0m\n"
-    else
-        echo -e '\n\e[31m> Something went wrong. Please report it.\e[0m\n'
-    fi
+        [ "$delete_script" = true ] && rm -f "$0"
+    else fail; fi
+}
+
+fail() {
+    echo -e '\n\e[31m> Something went wrong. Please report it.\e[0m\n'
     exit
 }
 
 dnf_dependencies() {
     dnf -y install make cmake which git gcc-c++ \
-        tcl-devel boost-devel python python3-devel;
+        tcl-devel boost-devel python python3-devel || fail
 }
 
 python_dependencies() {
-    python -m venv "$lib_dir/python-env"
-    source "$lib_dir/python-env/bin/activate"
-    pip install --upgrade pip 'pylint==2.17.5' 'libclang==16.0.6'
+    python -m venv "$lib_dir/python-env" || fail
+    source "$lib_dir/python-env/bin/activate" || fail
+    pip install --upgrade pip 'pylint==2.17.5' 'libclang==16.0.6' || fail
 }
 
 git_clone() {
     git_url='https://github.com/Epitech/banana-vera'
     git clone --depth 1 "$git_url" "$lib_dir/repo" \
-        2> >(grep -ve '^remote:' -e '^Resolving deltas:' -e '^Cloning into' >&2)
+        2> >(grep -ve '^remote:' -e '^Resolving deltas:' -e '^Cloning into' >&2) || fail
 }
 
 cmake_configure() {
-    cd "$lib_dir/repo"
+    cd "$lib_dir/repo" || fail
     cmake . -DVERA_LUA=OFF -DPANDOC=OFF -DVERA_USE_SYSTEM_BOOST=ON -Wno-dev \
-        2> >(grep -ve '^$' -e '^CMake Warning' -e 'pandoc' | sed 's:^ *::g' >&2)
+        2> >(grep -ve '^$' -e '^CMake Warning' -e 'pandoc' | sed 's:^ *::g' >&2) || fail
 }
 
 cmake_build() {
-    cd "$lib_dir/repo"
-    make -j 2> >(grep -v "warning L00" >&2)
-    cp "$lib_dir/repo/src/vera++" "$lib_dir/checker"
-    strip "$lib_dir/checker"
+    cd "$lib_dir/repo" || fail
+    make -j 2> >(grep -v "warning L00" >&2) || fail
+    cp "$lib_dir/repo/src/vera++" "$lib_dir/checker" || fail
+    strip "$lib_dir/checker" || fail
     rm -rf "$lib_dir/repo"
 }
 
@@ -180,12 +184,12 @@ profile() {
     done
     profile+='}'
     mkdir -p "$lib_dir/lib/vera++/profiles"
-    echo "$profile" > "$lib_dir/lib/vera++/profiles/epitech"
+    echo "$profile" > "$lib_dir/lib/vera++/profiles/epitech" || fail
 }
 
 rules() {
 mkdir -p "$lib_dir/lib/vera++/rules"
-cd "$lib_dir/lib/vera++/rules"
+cd "$lib_dir/lib/vera++/rules" || fail
 mkdir -p 'utils/functions'
 touch '__init__.py'
 
