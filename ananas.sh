@@ -46,7 +46,6 @@ get_su() {
 }
 
 main() {
-    # Uninstall: sudo rm -rf /bin/ananas /lib/ananas
     bin_dir='/bin'
     lib_dir='/lib/ananas'
 
@@ -58,6 +57,7 @@ main() {
         mkdir -p "$bin_dir" "$lib_dir"
         cp "$0" "$bin_dir/ananas"
         chmod +x "$bin_dir/ananas"
+        rm -f "$0"
     fi
 
     if [ -x "$lib_dir/checker" ]; then
