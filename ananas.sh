@@ -79,21 +79,21 @@ check() {
         "$lib_dir/checker" --profile epitech -d 2>/dev/null \
     )
 
-	fatal=$(grep -c 'FATAL' <<< "$output")
-	major=$(grep -c 'MAJOR' <<< "$output")
-	minor=$(grep -c 'MINOR' <<< "$output")
-	info=$(grep -c 'INFO' <<< "$output")
+    fatal=$(grep -c 'FATAL' <<< "$output")
+    major=$(grep -c 'MAJOR' <<< "$output")
+    minor=$(grep -c 'MINOR' <<< "$output")
+    info=$(grep -c 'INFO' <<< "$output")
 
-	if [ -n "$output" ]; then
-		echo -e "\n\e[0;1m> Ananas report: \e[0m\n"
-	    write_errors
-		echo
-	else
-		echo -en "\n\e[0;1m> Ananas report: \e[0m"
-	fi
+    if [ -n "$output" ]; then
+        echo -e "\n\e[0;1m> Ananas report: \e[0m\n"
+        write_errors
+        echo
+    else
+        echo -en "\n\e[0;1m> Ananas report: \e[0m"
+    fi
 
-	echo -en "\e[31mFATAL: $fatal \e[0m- \e[33mMAJOR: $major \e[0m"
-	echo -e "- \e[32mMINOR: $minor \e[0m- \e[34mINFO: $info\e[0m\n"
+    echo -en "\e[31mFATAL: $fatal \e[0m- \e[33mMAJOR: $major \e[0m"
+    echo -e "- \e[32mMINOR: $minor \e[0m- \e[34mINFO: $info\e[0m\n"
 }
 
 write_errors() {
