@@ -39,7 +39,7 @@ declare -A error_codes=(
 )
 
 get_su() {
-    if [ "$EUID" -ne 0 ]; then
+    if [ "$EUID" -ne 0 ] && [ $(uname -o) != Android ]; then
         sudo bash "$0" "$@"
         exit
     fi
@@ -140,7 +140,7 @@ setup() {
 }
 
 fail() {
-    echo -e '\n\e[31m> Something went wrong. Please report it.\e[0m\n'
+    echo -e '\n\e[31m> Something went wrong. Please report it.\e[0m\n' >&2
     exit
 }
 
