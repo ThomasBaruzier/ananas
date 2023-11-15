@@ -48,11 +48,9 @@ get_su() {
 main() {
     bin_dir='/usr/bin'
     lib_dir='/usr/lib/ananas'
-
     cur_dir=$(readlink -f "$0")
     cur_dir="${cur_dir%/*}"
 
-    delete_script=false
     if [ "$cur_dir" != "$bin_dir" ]; then
         get_su "$@"
         mkdir -p "$bin_dir" "$lib_dir"
@@ -67,6 +65,8 @@ main() {
         get_su "$@"
         setup
     fi
+
+    [ "$delete_script" = true ] && rm -f "$cur_dir/$0"
 }
 
 check() {
@@ -134,7 +134,6 @@ setup() {
 
     if [ -x "$lib_dir/checker" ]; then
         echo -e "\n\e[1m> The command 'ananas' is ready to use.\e[0m\n"
-        [ "$delete_script" = true ] && rm -f "$cur_dir/$0"
     else fail; fi
 }
 
