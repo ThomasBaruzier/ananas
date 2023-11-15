@@ -58,7 +58,7 @@ main() {
         chmod +x "$bin_dir/ananas"
         if [ -x "$lib_dir/checker" ]; then
             echo -en '\n\e[1m> Ananas is already installed. '
-            echo -en "Please use the command 'ananas' to run it.\e[0m\n"
+            echo -e "Please use the command 'ananas' to run it.\e[0m\n"
             exit
         fi
     fi
