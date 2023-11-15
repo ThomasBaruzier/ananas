@@ -75,8 +75,7 @@ check() {
     source "$lib_dir/python-env/bin/activate"
 
     output=$(find -L "$delivery" -type f | \
-        grep -Ev "^(./tests|./bonus|./.git).*" | \
-        #grep -v 'illegal token in column' | \
+        grep -Ev "/(tests|bonus|\.git)/" | \
         "$lib_dir/checker" --profile epitech -d 2>/dev/null \
     )
 
@@ -304,7 +303,7 @@ EOF
 cat << EOF > './C-C2.py'
 import vera
 
-from utils import is_source_file, is_header_file, ASSIGN_TOKENS, VALUE_MODIFIER_TOKENS, INCREMENT_DECREMENT_TOKENS, \
+from utils import is_source_file, is_header_file, ASSIGN_TOKENS, VALUE_MODIFIER_TOKENS, INCREMENT_DECREMENT_TOKENS, \\
     Token
 from utils.functions import for_each_function_with_statements
 
@@ -824,7 +823,7 @@ def check_preprocessor_directives_indentation():
 
             line_indentation_level = _get_indentation_level(line)
             # If the indentation level is inferior to the current scope's, it is always an error
-            if _is_pp_directive(file, line_number, ALL_DIRECTIVES) \
+            if _is_pp_directive(file, line_number, ALL_DIRECTIVES) \\
                     and line_indentation_level < previous_indentation_level_stack[-1]:
                 vera.report(file, line_number, 'MINOR:C-G3')
 
@@ -844,7 +843,7 @@ def check_preprocessor_directives_indentation():
                 # Check done in order to prevent malformed #else directives to make this rule thrown an exception
                 if len(previous_indentation_level_stack) >= 2:
                     previous_indentation_level_stack.pop()
-            elif _is_pp_directive(file, line_number, ALL_DIRECTIVES) \
+            elif _is_pp_directive(file, line_number, ALL_DIRECTIVES) \\
                     and line_indentation_level == previous_indentation_level_stack[-1]:
                 # Directives inside directives that are not themselves branching directives
                 # must always be indented more than the branching directive which contains it
@@ -1125,7 +1124,7 @@ from utils import is_header_file, is_source_file
 def is_abusive_macro(line: str) -> bool:
     # Macro should fit in a single line
     # and contain a single statement
-    return line.endswith('\\') or ';' in line
+    return line.endswith('\\\\') or ';' in line
 
 
 def check_macro_size():
@@ -1149,7 +1148,7 @@ EOF
 cat << EOF > './C-L1.py'
 import vera
 
-from utils import is_source_file, is_header_file, CONTROL_STRUCTURE_TOKENS, ASSIGN_TOKENS, Token, \
+from utils import is_source_file, is_header_file, CONTROL_STRUCTURE_TOKENS, ASSIGN_TOKENS, Token, \\
     INCREMENT_DECREMENT_TOKENS
 from utils.functions import for_each_function_with_statements, skip_interval
 
@@ -1901,7 +1900,7 @@ def check_curly_brackets_placement():
                 if i + 1 < tokens_count and tokens[i + 1].name == 'else':
                     continue
                 line = token_line_content.replace(' ', '').replace('\t', '')
-                is_valid = re.match("}[ \t]*;?(//.*|/\\*.*)?[ \t]*$", line)
+                is_valid = re.match("}[ \t]*;?(//.*|/\\\\*.*)?[ \t]*$", line)
                 if not is_valid:
                     __report(token)
             elif token.name == 'else':
@@ -1971,7 +1970,7 @@ EOF
 cat << EOF > './C-L6.py'
 import vera
 from utils import is_header_file, is_source_file, is_line_empty
-from utils.functions import get_functions, get_function_statements, is_variable_declaration, get_function_body_tokens, \
+from utils.functions import get_functions, get_function_statements, is_variable_declaration, get_function_body_tokens, \\
     UnsureBool
 
 def _get_variable_declaration_status_for_each_line(function_statements) -> list[UnsureBool]:
@@ -2450,7 +2449,7 @@ def check_macro_names():
                 macro_name = cut.strip()
             else:
                 macro_name = cut[:end_cut].strip()
-            if not re.match(r"[A-Z_$]([$A-Z_0-9]+)", macro_name):
+            if not re.match(r"[A-Z_$]([\$A-Z_0-9]+)", macro_name):
                 vera.report(file, df.line, "MINOR:C-V1")
 
 check_function_return_type()
@@ -2767,7 +2766,7 @@ def debug_print(s, **kwargs):
 def __remove_between(lines: List[str], token: Token, begin_token="//", end_token=None) -> None:
     for offset, value in enumerate(token.value.split("\n")):
         line = lines[token.line - 1 + offset]
-        has_line_break = line.endswith('\\')
+        has_line_break = line.endswith('\\\\')
 
         head = line[:token.column] if offset == 0 else ""
         if (len(line) - (len(head) + len(value))) > 0:
@@ -2785,7 +2784,7 @@ def __remove_between(lines: List[str], token: Token, begin_token="//", end_token
             line = ' ' * len(line)
 
         if has_line_break:
-            line = line[:-1] + '\\'
+            line = line[:-1] + '\\\\'
 
         lines[token.line - 1 + offset] = line
 
@@ -2794,10 +2793,10 @@ def __reset_token_value(lines: List[str], token:Token) -> Token:
     value = token.value
     line = lines[token.line - 1][token.column:]
     offset = 0
-    while not line.replace('\\', '').replace('\n', '').startswith(value.replace('\\', '').replace('\n', '')) and (token.line - 1 + offset + 1) < len(lines):
+    while not line.replace('\\\\', '').replace('\n', '').startswith(value.replace('\\\\', '').replace('\n', '')) and (token.line - 1 + offset + 1) < len(lines):
         offset += 1
         line = line + '\n' + lines[token.line - 1 + offset]
-    diff = len(line.replace('\\', '').replace('\n', '')) - len(value.replace('\\', '').replace('\n', ''))
+    diff = len(line.replace('\\\\', '').replace('\n', '')) - len(value.replace('\\\\', '').replace('\n', ''))
     if diff > 0:
         line = line[:-diff]
     return Token(
@@ -2875,7 +2874,7 @@ class StarType(Enum):
 
 
 def _parse_star_left_paren(names: List[str], tok_count: int, index: int) -> StarType:
-    # lonely ptr, eg : `*(int *(*)[])`
+    # lonely ptr, eg : \`*(int *(*)[])\`
     if names[index + 1] == "rightparen":
         return StarType.LONELY
 
@@ -2938,7 +2937,7 @@ def get_star_token_type(tokens: Sequence["vera.Token"], index: int) -> StarType:
     # However, it is way more likely to be a pointer declaration as
     # a unassigned multiplication would be useless to the program.
 
-    # Eg: `sfEvent *event` vs `a * b`
+    # Eg: \`sfEvent *event\` vs \`a * b\`
     # We will prioterize pointer declaration for known types
     if (
         names[index + 1] in {"semicolon", "assign"}
