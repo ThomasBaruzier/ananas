@@ -119,8 +119,8 @@ setup() {
     echo -e '\e[1m\n> Setting up Ananas for the first time.\n\e[0m'
     rm -rf "$lib_dir/repo" "$lib_dir/lib" "$lib_dir/checker"
 
-    echo -e '\e[34mSTEP 1/6: Installing dnf dependencies...\e[0m'
-    dnf_dependencies >/dev/null
+    echo -e '\e[34mSTEP 1/6: Installing package dependencies...\e[0m'
+    package_dependencies >/dev/null
     echo -e '\e[34mSTEP 2/6: Installing python dependencies...\e[0m'
     python_dependencies >/dev/null
     echo -e '\e[34mSTEP 3/6: Cloning the banana repository...\e[0m'
@@ -144,9 +144,19 @@ fail() {
     exit
 }
 
-dnf_dependencies() {
-    dnf -y install make cmake which git gcc-c++ \
-        tcl-devel boost-devel python python3-devel || fail
+package_dependencies() {
+    if [ -x /bin/dnf ]; then
+        dnf -y install make cmake which git gcc-c++ \
+            tcl-devel boost-devel python python3-devel || fail
+    elif [ -x /bin/apt ]; then
+        apt update && apt -y install make cmake which git g++ tcl-dev \
+            libboost-dev python python3-pip || fail
+    elif [ -x /bin/pacman ]; then
+        pacman -Sy --noconfirm --needed make cmake which git
+            gcc tcl boost python python-pip || fail
+    else
+        fail
+    fi
 }
 
 python_dependencies() {
