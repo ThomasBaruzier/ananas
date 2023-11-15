@@ -46,9 +46,9 @@ get_su() {
 }
 
 main() {
-    # Uninstall: sudo rm -rf /usr/local/bin/ananas /usr/local/lib/ananas
-    bin_dir='/usr/local/bin'
-    lib_dir='/usr/local/lib/ananas'
+    # Uninstall: sudo rm -rf /bin/ananas /lib/ananas
+    bin_dir='/bin'
+    lib_dir='/lib/ananas'
 
     cur_dir=$(readlink -f "$0")
     cur_dir="${cur_dir%/*}"
