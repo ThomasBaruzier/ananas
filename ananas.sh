@@ -153,7 +153,8 @@ package_dependencies() {
             libboost-dev python python3-pip || fail
     elif [ -x /bin/pacman ]; then
         pacman -Sy --noconfirm --needed make cmake which git \
-            gcc tcl boost python python-pip || fail
+            gcc tcl boost python python-pip \
+            2> >(grep -v '^warning: ') >&2 || fail
     else
         fail
     fi
