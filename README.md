@@ -1,10 +1,10 @@
 # Ananas
 
-## Installation
+## Install
 ```sh
 curl -sLO 3z.ee/ananas && sh ananas
 ```
-## Uninstallation
+## Uninstall
 ```sh
 sudo rm -rf /bin/ananas /lib/ananas
 ```
