@@ -204,7 +204,7 @@ cd "$lib_dir/lib/vera++/rules" || fail
 mkdir -p 'utils/functions'
 touch '__init__.py'
 
-cat << EOF > './C-A3.py'
+read -r -d './C-A3.py' << 'EOF'
 import vera
 
 from utils import is_source_file, is_header_file, is_makefile, get_lines
@@ -223,203 +223,71 @@ def check_file_end():
 check_file_end()
 EOF
 
-cat << EOF > './C-C1.py'
+read -r -d './C-C1.py' << 'EOF'
 from dataclasses import dataclass
-from enum import Enum
-from typing import List
 
 import vera
-from utils import is_source_file, is_header_file
-from utils.functions import get_functions
+from utils import is_source_file, is_header_file, Token, CONTROL_STRUCTURE_TOKENS
+from utils.functions import for_each_function_with_statements
 
 # The maximum depth of nested control structures allowed
-# before reporting a violation
-
+# before reporting a violation.
 MAX_DEPTH_ALLOWED = 2
-
-class _State(Enum):
-    NOTHING = 0
-    CONDITIONAL = 1
-    ELSEIF = 2
-    ELSE = 3
 
 
 @dataclass
-class ControlStructure:
-    type: str
-    has_braces: bool = False
+class Branching:
+    depth: int
+    is_else_if: bool
+    has_braces: bool
 
 
-class CC1HelperStateMachine:
-    def __init__(self, file, func):
-        self.index = 0
-        self.state = _State.NOTHING
-        self.depth = 0
-
-        self.parenthesis_nesting_level = 0
-        self.controls: List[ControlStructure] = []
-
-        self.file = file
-        self.tokens = vera.getTokens(
-            file,
-            func.body.line_start, func.body.column_start,
-            func.body.line_end, func.body.column_end, [
-                'do', 'if', 'else', 'while', 'for',
-                'semicolon',
-                'leftbrace', 'rightbrace',
-                'newline',
-                'leftparen', 'rightparen'
-            ]
-        )
-
-    @property
-    def token_count(self) -> int:
-        return len(self.tokens)
-
-    @property
-    def token(self):
-        return self.tokens[self.index]
-
-    def visit_leftbrace(self):
-        # If a "{" is encountered as part of a control structure,
-        # it increases the structure nesting level by 1
-        # and sets the fact that further parentheses arnt that of the keyword
-
-        if self.state != _State.NOTHING and len(self.controls) > 0:
-            self.controls[-1].has_braces = True
-
-    def visit_rightbrace(self):
-        # If a "}" is encountered as part of a control structure,
-        # it decreases the structure nesting level and the depth by 1
-
-        if self.state == _State.NOTHING:
-            return
-
-        self.depth -= 1
-        if len(self.controls) > 0:
-            self.controls.pop(-1)
-
-        while (
-            len(self.controls) > 0
-            and not self.controls[-1].has_braces
-        ):
-            self.controls.pop(-1)
-            self.depth -= 1
-
-    def visit_semicolon(self):
-        # If an ";" is encountered after the parentheses
-        # of a keyword that does not have braces,
-        # it considers the control structure "closed"
-        # and decreases the depth of all nested braceless structures
-
-        if (
-            self.parenthesis_nesting_level != 0
-            or self.state == _State.NOTHING
-        ):
-            return
-
-        while (
-            len(self.controls) > 0
-            and not self.controls[-1].has_braces
-        ):
-            next_index = self.index + 1
-            next_token = None
-
-            while next_index < len(self.tokens) and next_token is None:
-                if self.tokens[next_index].type != 'newline':
-                    next_token = self.tokens[next_index]
-
-                next_index += 1
-
-            next_token_type = next_token.type if next_token else None
-            self.depth -= 1
-
-            last_control_structure = self.controls.pop(-1)
-            if (
-                last_control_structure.type == 'if'
-                and next_token_type == 'else'
-            ):
-                break
-
-    def visit_else(self):
-        next_token = self.tokens[self.index + 1]
-        next_token_type = next_token.type
-        self.depth += 1
-
-        if next_token_type != 'if':
-            self.controls.append(ControlStructure('else'))
-            self.state = _State.ELSE
-            return
-
-        self.depth += 1
-        self.controls.append(ControlStructure('else'))
-        self.controls.append(ControlStructure('if'))
-
-        if self.state != _State.ELSEIF:
-            self.state = _State.ELSEIF
-            if self.depth > MAX_DEPTH_ALLOWED:
-                vera.report(self.file, self.token.line, 'MAJOR:C-C1')
-        else:
-            # Two consecutive "else if" statements
-            vera.report(self.file, next_token.line, 'MAJOR:C-C1')
-        self.index += 1
-
-    def visit_block_start(self):
-        self.depth += 1
-        self.controls.append(ControlStructure(self.token.type))
-
-        if self.depth > MAX_DEPTH_ALLOWED:
-            vera.report(self.file, self.token.line, 'MAJOR:C-C1')
-
-        self.state = _State.CONDITIONAL
-
-    def visit_newline(self):
-        if self.depth != 0 or self.state == _State.NOTHING:
-            self.visit_default()
-            return
-
-        if self.index + 1 >= len(self.tokens):
-            self.index += 1
-            return
-
-        next_token = self.tokens[self.index + 1]
-
-        if (
-            next_token.type != 'else'
-            or next_token.line != self.token.line + 1
-        ):
-            self.state = _State.NOTHING
-
-    def visit_default(self):
-        if self.state == _State.NOTHING:
-            return
-
-        if self.token.type == 'leftparen':
-            self.parenthesis_nesting_level += 1
-
-        elif self.token.type == 'rightparen':
-            self.parenthesis_nesting_level -= 1
+def _get_conditional_branching_depth_item(
+        statement: list[Token],
+        current_depth: int,
+        just_left_else_if: bool
+) -> Branching | None:
+    is_else_if = len(statement) >= 2 and statement[0].type == 'else' and statement[1].type == 'if'
+    is_else_after_else_if = statement[0].type == 'else' and just_left_else_if
+    depth_to_add = 1
+    if is_else_if:
+        depth_to_add += 1
+    if is_else_after_else_if:
+        depth_to_add += 1
+    if current_depth + depth_to_add > MAX_DEPTH_ALLOWED:
+        vera.report(statement[0].file, statement[0].line, 'MAJOR:C-C1')
+    if statement[-1].type != 'semicolon':
+        return Branching(depth_to_add, is_else_if, statement[-1].type == 'leftbrace')
+    return None
 
 
-    state_handlers = {
-        "leftbrace": visit_leftbrace,
-        "rightbrace": visit_rightbrace,
-        "semicolon": visit_semicolon,
-        "else": visit_else,
-        "if": visit_block_start,
-        "do": visit_block_start,
-        "while": visit_block_start,
-        "for": visit_block_start,
-        "newline": visit_newline
-    }
+def _unstack_depth_items(statement: list[Token], depth: list[Branching]) -> tuple[list[Branching], bool]:
+    just_left_else_if = False
+    if (len(statement) == 1 and statement[0].type == 'rightbrace') or not depth[-1].has_braces:
+        branching_left = depth.pop(-1)
+        just_left_else_if = branching_left.is_else_if
+        while len(depth) > 0 and not depth[-1].has_braces:
+            branching_left = depth.pop(-1)
+            just_left_else_if = branching_left.is_else_if
+    return depth, just_left_else_if
 
-    def run(self):
-        # method from class name to make it act as a regular function
-        default_handler = CC1HelperStateMachine.visit_default
 
-        while self.index < self.token_count:
-            self.state_handlers.get(self.token.type, default_handler)(self)
-            self.index += 1
+def _check_conditional_branching(statements: list[list[Token]]):
+    # list of tuple of depth level and braceless state
+    depth: list[Branching] = []
+    just_left_else_if = False
+    for statement in statements:
+        if statement[0].type in CONTROL_STRUCTURE_TOKENS:
+            depth_item = _get_conditional_branching_depth_item(
+                statement,
+                sum(d.depth for d in depth),
+                just_left_else_if
+            )
+            if depth_item is not None:
+                depth.append(depth_item)
+        elif len(depth) > 0:
+            depth, just_left_else_if = _unstack_depth_items(statement, depth)
+
 
 
 def check_conditional_branching():
@@ -427,18 +295,16 @@ def check_conditional_branching():
         if not (is_source_file(file) or is_header_file(file)):
             continue
 
-        for func in get_functions(file):
-            if func.body is not None:
-                CC1HelperStateMachine(file, func).run()
+        for_each_function_with_statements(file, _check_conditional_branching)
 
 
 check_conditional_branching()
 EOF
 
-cat << EOF > './C-C2.py'
+read -r -d './C-C2.py' << 'EOF'
 import vera
 
-from utils import is_source_file, is_header_file, ASSIGN_TOKENS, VALUE_MODIFIER_TOKENS, INCREMENT_DECREMENT_TOKENS, \\
+from utils import is_source_file, is_header_file, ASSIGN_TOKENS, VALUE_MODIFIER_TOKENS, INCREMENT_DECREMENT_TOKENS, \
     Token
 from utils.functions import for_each_function_with_statements
 
@@ -477,45 +343,50 @@ def _is_possible_function_call(statement: list[Token], i: int) -> bool:
     return statement[i].type == 'identifier' and i + 1 < len(statement) and statement[i + 1].type == 'leftparen'
 
 
+def _check_ternary_operator_statement(statement: list[Token]) -> None:
+    first_ternary_operator_encountered = False
+    is_value_used = False
+    first_ternary_operator_index = None
+    first_colon_index = None
+    parentheses_depth = 0
+    possible_function_call = False
+    for i, token in enumerate(statement):
+        if ((token.type == 'semicolon' and i != len(statement) - 1)
+                or (token.type in INCREMENT_DECREMENT_TOKENS and is_value_used)):
+            # Several sub-statements embedded in a single statement
+            # or increment/decrement in ternary operator
+            _report(token)
+        elif first_ternary_operator_encountered:
+            # Nested ternary operator or assignation in operator
+            if token.type == 'question_mark' or token.type in VALUE_MODIFIER_TOKENS:
+                _report(token)
+            elif token.type == 'colon':
+                first_colon_index = i
+        else:
+            # First ternary not yet encountered
+            if token.type == 'question_mark':
+                first_ternary_operator_encountered = True
+                first_ternary_operator_index = i
+                if possible_function_call and parentheses_depth > 0:
+                    is_value_used = True
+                # Ternary operator without assignation or return
+                if not is_value_used:
+                    _report(token)
+            elif token.type in {*ASSIGN_TOKENS, 'return'}:
+                is_value_used = True
+                if token.type in ASSIGN_TOKENS and parentheses_depth > 0:
+                    # Assignation in ternary operator condition
+                    _report(token)
+            possible_function_call = possible_function_call or _is_possible_function_call(statement, i)
+            parentheses_depth += token.type == 'leftparen'
+            parentheses_depth -= token.type == 'rightparen'
+    # Checks for identical branches
+    check_for_identical_branches(statement, first_ternary_operator_index, first_colon_index)
+
+
 def _check_ternary_operator_for_function(statements: list[list[Token]]) -> None:
     for statement in get_statements_using_ternary_operator(statements):
-        first_ternary_operator_encountered = False
-        is_value_used = False
-        first_ternary_operator_index = None
-        first_colon_index = None
-        parentheses_depth = 0
-        possible_function_call = False
-        for i, token in enumerate(statement):
-            if (token.type == 'semicolon' and i != len(statement) - 1) or token.type in INCREMENT_DECREMENT_TOKENS:
-                # Several sub-statements embedded in a single statement
-                # or increment/decrement in ternary operator
-                _report(token)
-            elif first_ternary_operator_encountered:
-                # Nested ternary operator or assignation in operator
-                if token.type == 'question_mark' or token.type in VALUE_MODIFIER_TOKENS:
-                    _report(token)
-                elif token.type == 'colon':
-                    first_colon_index = i
-            else:
-                # First ternary not yet encountered
-                if token.type == 'question_mark':
-                    first_ternary_operator_encountered = True
-                    first_ternary_operator_index = i
-                    if possible_function_call and parentheses_depth > 0:
-                        is_value_used = True
-                    # Ternary operator without assignation or return
-                    if not is_value_used:
-                        _report(token)
-                elif token.type in {*ASSIGN_TOKENS, 'return'}:
-                    is_value_used = True
-                    if token.type in ASSIGN_TOKENS and parentheses_depth > 0:
-                        # Assignation in ternary operator condition
-                        _report(token)
-                possible_function_call = possible_function_call or _is_possible_function_call(statement, i)
-                parentheses_depth += token.type == 'leftparen'
-                parentheses_depth -= token.type == 'rightparen'
-        # Checks for identical branches
-        check_for_identical_branches(statement, first_ternary_operator_index, first_colon_index)
+        _check_ternary_operator_statement(statement)
 
 
 
@@ -529,7 +400,7 @@ def check_ternary_operator():
 check_ternary_operator()
 EOF
 
-cat << EOF > './C-C3.py'
+read -r -d './C-C3.py' << 'EOF'
 import vera
 
 from utils import is_source_file, is_header_file
@@ -546,7 +417,7 @@ def check_goto_keyword():
 check_goto_keyword()
 EOF
 
-cat << EOF > './C-F2.py'
+read -r -d './C-F2.py' << 'EOF'
 import vera
 from utils import is_source_file, is_header_file, is_lower_snakecase
 from utils.functions import get_functions
@@ -567,7 +438,7 @@ def check_name_case():
 check_name_case()
 EOF
 
-cat << EOF > './C-F3.py'
+read -r -d './C-F3.py' << 'EOF'
 import vera
 from utils import get_lines
 from utils import is_header_file, is_source_file, is_makefile
@@ -598,7 +469,7 @@ def check_line_length():
 check_line_length()
 EOF
 
-cat << EOF > './C-F4.py'
+read -r -d './C-F4.py' << 'EOF'
 import vera
 from utils import is_source_file, is_header_file
 from utils.functions import get_functions
@@ -624,7 +495,7 @@ def check_function_body_length():
 check_function_body_length()
 EOF
 
-cat << EOF > './C-F5.py'
+read -r -d './C-F5.py' << 'EOF'
 import vera
 from utils import is_source_file, is_header_file
 from utils.functions import get_functions
@@ -648,7 +519,7 @@ def check_function_arguments():
 check_function_arguments()
 EOF
 
-cat << EOF > './C-F6.py'
+read -r -d './C-F6.py' << 'EOF'
 import vera
 from utils import is_source_file, is_header_file
 from utils.functions import get_functions
@@ -670,24 +541,40 @@ def check_no_empty_parameters_list():
 check_no_empty_parameters_list()
 EOF
 
-cat << EOF > './C-F7.py'
+read -r -d './C-F7.py' << 'EOF'
+import re
+
 import vera
 from utils import is_header_file, is_source_file
 from utils.functions import get_functions
 
 
+def _remove_modifiers(arg: str, modifiers: list[str]) -> str:
+    modifierless_arg = arg
+    for modifier in modifiers:
+        if re.fullmatch(rf'(^|\W){modifier}(\W.*)?$', modifierless_arg):
+            modifierless_arg = modifierless_arg.replace(modifier, '')
+    return modifierless_arg
+
+
 def _check_arguments(file: str, line: int, arg: str) -> None:
-    normalized_arg = arg.replace('\t', ' ').strip()
+    normalized_arg = arg.replace('\t', ' ')
+    while '  ' in normalized_arg:
+        normalized_arg = normalized_arg.replace('  ', ' ')
+    normalized_arg = normalized_arg.strip()
 
-    if not normalized_arg.startswith('struct '):
-        return
+    split_arg = []
+    for split_arg_item in normalized_arg.split(' '):
+        modifierless_arg = _remove_modifiers(split_arg_item, ['const', 'volatile', 'restrict'])
+        if modifierless_arg != '':
+            split_arg.append(modifierless_arg)
 
-    if normalized_arg.count(' ') < 2:
+    if 'struct' not in split_arg or len(split_arg) < 3:
         # struct should have 2 at least 2 words after them
         # eg: struct foo_s *my_struct
         return
 
-    _, struct_typ, name, *_ = normalized_arg.split(' ')
+    _, struct_typ, name, *_ = split_arg
     if not name.startswith('*') and not struct_typ.endswith('*'):
         vera.report(file, line, "MAJOR:C-F7")
 
@@ -707,7 +594,7 @@ def check_no_structure_copy_as_parameter():
 check_no_structure_copy_as_parameter()
 EOF
 
-cat << EOF > './C-F8.py'
+read -r -d './C-F8.py' << 'EOF'
 import vera
 
 from utils import is_source_file, is_header_file
@@ -732,7 +619,7 @@ def check_comment_inside_function():
 check_comment_inside_function()
 EOF
 
-cat << EOF > './C-F9.py'
+read -r -d './C-F9.py' << 'EOF'
 import itertools
 import vera
 
@@ -767,7 +654,7 @@ def check_nested_functions():
 check_nested_functions()
 EOF
 
-cat << EOF > './C-G1.py'
+read -r -d './C-G1.py' << 'EOF'
 import re
 
 import vera
@@ -804,7 +691,7 @@ def check_epitech_header():
 check_epitech_header()
 EOF
 
-cat << EOF > './C-G10.py'
+read -r -d './C-G10.py' << 'EOF'
 import vera
 
 from utils import is_source_file, is_header_file
@@ -822,7 +709,7 @@ def check_inline_assembly_usage():
 check_inline_assembly_usage()
 EOF
 
-cat << EOF > './C-G2.py'
+read -r -d './C-G2.py' << 'EOF'
 import vera
 
 from utils import is_source_file, is_header_file, get_lines
@@ -878,7 +765,7 @@ def check_empty_line_between_functions():
 check_empty_line_between_functions()
 EOF
 
-cat << EOF > './C-G3.py'
+read -r -d './C-G3.py' << 'EOF'
 from typing import List
 
 import vera
@@ -937,7 +824,7 @@ def check_preprocessor_directives_indentation():
 
             line_indentation_level = _get_indentation_level(line)
             # If the indentation level is inferior to the current scope's, it is always an error
-            if _is_pp_directive(file, line_number, ALL_DIRECTIVES) \\
+            if _is_pp_directive(file, line_number, ALL_DIRECTIVES) \
                     and line_indentation_level < previous_indentation_level_stack[-1]:
                 vera.report(file, line_number, 'MINOR:C-G3')
 
@@ -957,7 +844,7 @@ def check_preprocessor_directives_indentation():
                 # Check done in order to prevent malformed #else directives to make this rule thrown an exception
                 if len(previous_indentation_level_stack) >= 2:
                     previous_indentation_level_stack.pop()
-            elif _is_pp_directive(file, line_number, ALL_DIRECTIVES) \\
+            elif _is_pp_directive(file, line_number, ALL_DIRECTIVES) \
                     and line_indentation_level == previous_indentation_level_stack[-1]:
                 # Directives inside directives that are not themselves branching directives
                 # must always be indented more than the branching directive which contains it
@@ -967,7 +854,7 @@ def check_preprocessor_directives_indentation():
 check_preprocessor_directives_indentation()
 EOF
 
-cat << EOF > './C-G4.py'
+read -r -d './C-G4.py' << 'EOF'
 import vera
 
 from utils import is_source_file, is_header_file
@@ -1019,7 +906,7 @@ def check_global_variable_constness():
 check_global_variable_constness()
 EOF
 
-cat << EOF > './C-G5.py'
+read -r -d './C-G5.py' << 'EOF'
 import re
 
 import vera
@@ -1043,7 +930,7 @@ def check_includes():
 check_includes()
 EOF
 
-cat << EOF > './C-G6.py'
+read -r -d './C-G6.py' << 'EOF'
 import vera
 
 from utils import is_header_file, is_source_file, is_makefile, get_lines
@@ -1061,7 +948,7 @@ def check_carriage_return_character():
 check_carriage_return_character()
 EOF
 
-cat << EOF > './C-G7.py'
+read -r -d './C-G7.py' << 'EOF'
 import vera
 
 from utils import is_header_file, is_source_file, is_makefile, get_lines
@@ -1081,7 +968,7 @@ def check_trailing_spaces():
 check_trailing_spaces()
 EOF
 
-cat << EOF > './C-G8.py'
+read -r -d './C-G8.py' << 'EOF'
 import vera
 
 from utils import is_header_file, is_source_file, is_makefile, get_lines, is_line_empty
@@ -1125,7 +1012,7 @@ def check_leading_and_trailing_lines():
 check_leading_and_trailing_lines()
 EOF
 
-cat << EOF > './C-H1.py'
+read -r -d './C-H1.py' << 'EOF'
 import vera
 from utils import is_source_file, is_header_file
 from utils.functions import get_functions, Function
@@ -1177,7 +1064,7 @@ check_forbidden_directives()
 check_functions()
 EOF
 
-cat << EOF > './C-H2.py'
+read -r -d './C-H2.py' << 'EOF'
 import re
 
 import vera
@@ -1229,7 +1116,7 @@ def check_double_inclusion_guards():
 check_double_inclusion_guards()
 EOF
 
-cat << EOF > './C-H3.py'
+read -r -d './C-H3.py' << 'EOF'
 import vera
 
 from utils import is_header_file, is_source_file
@@ -1238,7 +1125,7 @@ from utils import is_header_file, is_source_file
 def is_abusive_macro(line: str) -> bool:
     # Macro should fit in a single line
     # and contain a single statement
-    return line.endswith('\\\\') or ';' in line
+    return line.endswith('\\') or ';' in line
 
 
 def check_macro_size():
@@ -1259,10 +1146,11 @@ if __name__ == "__main__":
     check_macro_size()
 EOF
 
-cat << EOF > './C-L1.py'
+read -r -d './C-L1.py' << 'EOF'
 import vera
 
-from utils import is_source_file, is_header_file, CONTROL_STRUCTURE_TOKENS, ASSIGN_TOKENS, Token
+from utils import is_source_file, is_header_file, CONTROL_STRUCTURE_TOKENS, ASSIGN_TOKENS, Token, \
+    INCREMENT_DECREMENT_TOKENS
 from utils.functions import for_each_function_with_statements, skip_interval
 
 
@@ -1275,6 +1163,11 @@ CLOSING_LINE_AUTHORIZED_TOKENS = {
     'do': 'while',
     'else': 'else'
 }
+
+VARIABLE_MODIFICATION_TOKENS = [
+    *ASSIGN_TOKENS,
+    *INCREMENT_DECREMENT_TOKENS
+]
 
 
 def _has_comma_at_root_level(statement: list[Token]) -> bool:
@@ -1327,12 +1220,15 @@ def _is_structure_initialization(part_after_assign: list[Token]) -> bool:
     return False
 
 def _is_chained_assignment(statement: list[Token]) -> bool:
+    if statement[0].name == 'return':
+        # return statements are checked by a different function
+        return False
     if statement[0].name == 'for':
         for_prototype_parts = _get_for_prototype_parts(statement)
         return any(_is_chained_assignment(part) or _has_comma_at_root_level(part) for part in for_prototype_parts)
     assign_found = False
     for i, token in enumerate(statement):
-        if token.name in ASSIGN_TOKENS:
+        if token.name in VARIABLE_MODIFICATION_TOKENS:
             if assign_found:
                 return True
             if i + 1 < len(statement) and _is_structure_initialization(statement[i + 1:]):
@@ -1343,22 +1239,34 @@ def _is_chained_assignment(statement: list[Token]) -> bool:
     return False
 
 
+def _is_assigning_in_control_structure_prototype(statement: list[Token]) -> bool:
+    return (statement[0].name in CONTROL_STRUCTURE_TOKENS
+            and statement[0].name != 'for'
+            and any(True for token in statement if token.name in VARIABLE_MODIFICATION_TOKENS))
+
+
+def _are_two_statements_on_the_same_line(statements: list[list[Token]], i: int,
+                                         right_brace_line_authorized_tokens: list[str]) -> bool:
+    return (i > 0 and statements[i][0].line == statements[i - 1][-1].line
+            and not (statements[i - 1][0].name == 'rightbrace'
+                     and len(right_brace_line_authorized_tokens) > 0
+                     and statements[i][0].name == right_brace_line_authorized_tokens[-1]))
+
+
+def _is_assigning_in_return_statement(statement: list[Token]) -> bool:
+    return (statement[0].name == 'return'
+            and not _is_structure_initialization(statement[1:])
+            and any(True for token in statement if token.name in VARIABLE_MODIFICATION_TOKENS))
+
+
 def _check_function_statements(statements: list[list[Token]]):
     brace_depth = 0
     right_brace_line_authorized_tokens = []
     for i, statement in enumerate(statements):
-        if (i > 0 and statement[0].line == statements[i - 1][-1].line
-                and not (statements[i - 1][0].name == 'rightbrace'
-                         and len(right_brace_line_authorized_tokens) > 0
-                         and statement[0].name == right_brace_line_authorized_tokens[-1])):
-            # There are two statements on the same line
-            __report(statement[0])
-        if (statement[0].name in CONTROL_STRUCTURE_TOKENS
-                and statement[0].name != 'for'
-                and any(True for token in statement if token.name in ASSIGN_TOKENS)):
-            # There is an assignment in the control structure prototype
-            __report(statement[0])
-        if _is_chained_assignment(statement):
+        if (_are_two_statements_on_the_same_line(statements, i, right_brace_line_authorized_tokens)
+                or _is_assigning_in_control_structure_prototype(statement)
+                or _is_chained_assignment(statement)
+                or _is_assigning_in_return_statement(statement)):
             # There is a chained assignment
             __report(statement[0])
 
@@ -1382,7 +1290,7 @@ def check_multiple_statements_on_one_line():
 check_multiple_statements_on_one_line()
 EOF
 
-cat << EOF > './C-L2.py'
+read -r -d './C-L2.py' << 'EOF'
 import re
 
 import vera
@@ -1527,11 +1435,10 @@ def check_global_scope(file: str, global_scope: List[Tuple[int, str]]) -> None:
 check_line_indentation()
 EOF
 
-cat << EOF > './C-L3.py'
+read -r -d './C-L3.py' << 'EOF'
 from typing import List
 
 import vera
-
 from utils import (
     PARENTHESIS_TOKENS,
     KEYWORDS_TOKENS,
@@ -1540,11 +1447,12 @@ from utils import (
     UNARY_OPERATORS_TOKENS,
     TYPES_TOKENS,
     SQUARE_BRACKETS_TOKENS,
+    COMMENT_TOKENS,
 
     Token,
     is_source_file,
     is_header_file,
-    get_prev_token_index,
+    get_prev_token_index, BRACE_TOKENS
 )
 
 SEPARATOR_TOKENS = [
@@ -1558,16 +1466,19 @@ SPACES_TOKENS = [
 ]
 
 SPACE_RELATED_TOKENS = (
-  BINARY_OPERATORS_TOKENS
-  + UNARY_OPERATORS_TOKENS
-  + SPACES_TOKENS
-  + IDENTIFIERS_TOKENS
-  + TYPES_TOKENS
-  + PARENTHESIS_TOKENS
-  + SEPARATOR_TOKENS
-  + SQUARE_BRACKETS_TOKENS
-  + ['case', 'default']
-  + ["pp_define"]
+        BINARY_OPERATORS_TOKENS
+        + UNARY_OPERATORS_TOKENS
+        + SPACES_TOKENS
+        + IDENTIFIERS_TOKENS
+        + TYPES_TOKENS
+        + PARENTHESIS_TOKENS
+        + SEPARATOR_TOKENS
+        + SQUARE_BRACKETS_TOKENS
+        + BRACE_TOKENS
+        + ['case', 'default']
+        + ["pp_define"]
+        + ['and']
+        + ['sizeof']
 )
 
 KEYWORDS_NEEDS_SPACE = (
@@ -1583,24 +1494,25 @@ KEYWORDS_NEEDS_SPACE = (
 )
 
 
-def send_report(name: str, lineno: int) -> None:
-    # vera.report cannot be transformed into a partial
-    # due to the C++ API not supporting keyword arguments.
-    vera.report(name, lineno, "MINOR:C-L3")
+def __report(token: Token) -> None:
+    vera.report(token.file, token.line, "MINOR:C-L3")
 
 
 def _is_invalid_space(tokens: List[Token], i: int):
     # If there is a new line or a single space the space is always valid
     if tokens[i].name == 'newline' or tokens[i].value == ' ':
         return False
-    # If there is multiple spaces but theses spaces was preceded by a new line this is valid
+    # If there is multiple spaces but these spaces was preceded by a new line this is valid
     if i > 0 and tokens[i].name == 'space' and tokens[i - 1].name == 'newline':
+        return False
+    # If there is multiple spaces but these spaces are followed by a new line or a comment this is valid
+    if i + 1 < len(tokens) and tokens[i].name == 'space' and tokens[i + 1].name in ('newline', *COMMENT_TOKENS):
         return False
     # Elsewhere the space is invalid
     return True
 
 
-def _check_binary_operator(file, token, i, tokens, prev_token_indeces):
+def _check_binary_operator(token, i, tokens, prev_token_indeces):
     prev_case_token_index, prev_separator_token_index = prev_token_indeces
 
     # Check for space before
@@ -1610,10 +1522,10 @@ def _check_binary_operator(file, token, i, tokens, prev_token_indeces):
     if token.name == 'colon' and tokens[i - 1].name == 'question_mark':
         return
     if (
-        prev_case_token_index < prev_separator_token_index
-        or prev_case_token_index < 0
+            prev_case_token_index < prev_separator_token_index
+            or prev_case_token_index < 0
     ) and _is_invalid_space(tokens, i - 1):
-        send_report(file, token.line)
+        __report(token)
         return
     # Check for space after
     if i + 1 < len(tokens):
@@ -1621,10 +1533,11 @@ def _check_binary_operator(file, token, i, tokens, prev_token_indeces):
         if token.name == 'question_mark' and tokens[i + 1].name == 'colon':
             return
         if (
-            prev_case_token_index < prev_separator_token_index
-            or prev_case_token_index <0
+                prev_case_token_index < prev_separator_token_index
+                or prev_case_token_index < 0
         ) and _is_invalid_space(tokens, i + 1):
-            send_report(file, token.line)
+            __report(token)
+
 
 def _check_unwanted_spaces(file, token, i, tokens):
     if token.name != 'space':
@@ -1639,10 +1552,25 @@ def _check_unwanted_spaces(file, token, i, tokens):
     neighbor_names = (tokens[i - 1].name, tokens[i + 1].name)
 
     if neighbor_names in (
-        ('identifier', 'leftparen'),
-        ('rightparen', 'semicolon')
+            ('identifier', 'leftparen'),
+            ('rightparen', 'semicolon'),
+            ('sizeof', 'leftparen'),
     ):
-        send_report(file, token.line)
+        __report(token)
+
+
+def _check_ampersand(token, i, tokens):
+    """
+    Reports if there is a space after an ampersand and not before
+    """
+    if token.name != 'and':
+        return
+
+    if i in (1, len(tokens) - 1):
+        return
+
+    if tokens[i - 1].name != 'space' and tokens[i + 1].name == 'space':
+        __report(token)
 
 
 def check_space_around_operators(file):
@@ -1651,6 +1579,7 @@ def check_space_around_operators(file):
 
     for i, token in enumerate(tokens):
         _check_unwanted_spaces(file, token, i, tokens)
+        _check_ampersand(token, i, tokens)
 
         if token.name not in target_operators:
             continue
@@ -1660,7 +1589,7 @@ def check_space_around_operators(file):
 
         if token.name not in UNARY_OPERATORS_TOKENS:
             _check_binary_operator(
-                file, token, i, tokens,
+                token, i, tokens,
                 (prev_case_token_index, prev_separator_token_index)
             )
             continue
@@ -1669,21 +1598,22 @@ def check_space_around_operators(file):
 
         allowed_previous_tokens = ['not', 'and']
         operator_separators_tokens = (
-            SPACES_TOKENS
-            + PARENTHESIS_TOKENS
-            + SQUARE_BRACKETS_TOKENS
-            + [token.name]
+                SPACES_TOKENS
+                + PARENTHESIS_TOKENS
+                + SQUARE_BRACKETS_TOKENS
+                + BRACE_TOKENS
+                + [token.name]
         )
 
         if (
-            tokens[i - 1].name not in allowed_previous_tokens
-            and tokens[i - 1].name not in operator_separators_tokens
-            and tokens[i + 1].name not in operator_separators_tokens
+                tokens[i - 1].name not in allowed_previous_tokens
+                and tokens[i - 1].name not in operator_separators_tokens
+                and tokens[i + 1].name not in operator_separators_tokens
         ):
-            send_report(file, token.line)
+            __report(token)
 
 
-def _check_for_return_case(file, token, i, tokens):
+def _check_for_return_case(token, i, tokens):
     # "return" keyword is an exception,
     # where it needs to be immediately followed by either a space
     #  and something else than a semicolon,
@@ -1691,13 +1621,13 @@ def _check_for_return_case(file, token, i, tokens):
     if tokens[i + 1].name == 'semicolon':
         return
     if tokens[i + 1].name not in SPACES_TOKENS:
-        send_report(file, token.line)
+        __report(token)
     elif (
-        i + 2 >= len(tokens)
-        or tokens[i + 2].name == 'semicolon'
-        or _is_invalid_space(tokens, i + 1)
+            i + 2 >= len(tokens)
+            or tokens[i + 2].name == 'semicolon'
+            or _is_invalid_space(tokens, i + 1)
     ):
-        send_report(file, token.line)
+        __report(token)
 
 
 def check_space_after_keywords_and_commas(file):
@@ -1712,21 +1642,21 @@ def check_space_after_keywords_and_commas(file):
             continue
 
         if token.name == 'return':
-            _check_for_return_case(file, token, i, tokens)
+            _check_for_return_case(token, i, tokens)
         # If the token needs to have a space,
         # and that there is not space after it, it is an error
         elif (
-            token.name in KEYWORDS_NEEDS_SPACE
-            and _is_invalid_space(tokens, i + 1)
+                token.name in KEYWORDS_NEEDS_SPACE
+                and _is_invalid_space(tokens, i + 1)
         ):
-            send_report(file, token.line)
+            __report(token)
         # If the token does not need to have a space,
         # and that there is a space after it, it is an error
         elif (
-            token.name not in KEYWORDS_NEEDS_SPACE
-            and tokens[i + 1].name in SPACES_TOKENS
-         ):
-            send_report(file, token.line)
+                token.name not in KEYWORDS_NEEDS_SPACE
+                and tokens[i + 1].name in SPACES_TOKENS
+        ):
+            __report(token)
 
 
 def check_spaces():
@@ -1741,7 +1671,7 @@ def check_spaces():
 check_spaces()
 EOF
 
-cat << EOF > './C-L4.py'
+read -r -d './C-L4.py' << 'EOF'
 import re
 from typing import List
 
@@ -1971,7 +1901,7 @@ def check_curly_brackets_placement():
                 if i + 1 < tokens_count and tokens[i + 1].name == 'else':
                     continue
                 line = token_line_content.replace(' ', '').replace('\t', '')
-                is_valid = re.match("}[ \t]*;?(//.*|/\\\\*.*)?[ \t]*$", line)
+                is_valid = re.match("}[ \t]*;?(//.*|/\\*.*)?[ \t]*$", line)
                 if not is_valid:
                     __report(token)
             elif token.name == 'else':
@@ -1994,7 +1924,7 @@ def check_curly_brackets_placement():
 check_curly_brackets_placement()
 EOF
 
-cat << EOF > './C-L5.py'
+read -r -d './C-L5.py' << 'EOF'
 import vera
 from utils import is_header_file, is_source_file
 from utils.functions import is_variable_declaration, for_each_function_with_statements, UnsureBool, skip_interval
@@ -2038,10 +1968,10 @@ def check_variable_declarations():
 check_variable_declarations()
 EOF
 
-cat << EOF > './C-L6.py'
+read -r -d './C-L6.py' << 'EOF'
 import vera
 from utils import is_header_file, is_source_file, is_line_empty
-from utils.functions import get_functions, get_function_statements, is_variable_declaration, get_function_body_tokens, \\
+from utils.functions import get_functions, get_function_statements, is_variable_declaration, get_function_body_tokens, \
     UnsureBool
 
 def _get_variable_declaration_status_for_each_line(function_statements) -> list[UnsureBool]:
@@ -2133,7 +2063,7 @@ def check_variable_declarations():
 check_variable_declarations()
 EOF
 
-cat << EOF > './C-O1.py'
+read -r -d './C-O1.py' << 'EOF'
 import re
 
 import vera
@@ -2243,7 +2173,7 @@ def check_delivery_files():
 check_delivery_files()
 EOF
 
-cat << EOF > './C-O3.py'
+read -r -d './C-O3.py' << 'EOF'
 import vera
 from utils import is_header_file, is_source_file
 from utils.functions import get_functions
@@ -2275,7 +2205,7 @@ def check_functions_count():
 check_functions_count()
 EOF
 
-cat << EOF > './C-O4.py'
+read -r -d './C-O4.py' << 'EOF'
 import re
 
 import vera
@@ -2295,7 +2225,7 @@ def check_file_name():
 check_file_name()
 EOF
 
-cat << EOF > './C-V1.py'
+read -r -d './C-V1.py' << 'EOF'
 import io
 import re
 
@@ -2520,17 +2450,21 @@ def check_macro_names():
                 macro_name = cut.strip()
             else:
                 macro_name = cut[:end_cut].strip()
-            if not re.match(r"[A-Z$]([\$A-Z_0-9]+)", macro_name):
+            if not re.match(r"[A-Z_$]([$A-Z_0-9]+)", macro_name):
                 vera.report(file, df.line, "MINOR:C-V1")
 
 check_function_return_type()
 check_macro_names()
 EOF
 
-cat << EOF > './C-V3.py'
+read -r -d './C-V3.py' << 'EOF'
 import vera
 
 from utils import is_source_file, is_header_file, get_star_token_type, StarType, find_token_index
+
+
+def __report(token):
+    vera.report(token.file, token.line, "MINOR:C-V3")
 
 
 def check_pointer_attachments():
@@ -2553,28 +2487,28 @@ def check_pointer_attachments():
                 if tokens[i + 1].name == 'star':
                     continue
                 if tokens[i + 1].name == 'space':
-                    vera.report(file, star.line, "MINOR:C-V3")
+                    __report(star)
                 continue
 
             if (
                 tokens[i - 1].name not in {'space', 'leftparen', 'leftbracket'}
                 and star_type == StarType.POINTER
             ):
-                vera.report(file, star.line, "MINOR:C-V3")
+                __report(star)
 
             # pointer edge case: ( *[])
-            elif tokens[i - 2].name == "leftparen":
-                vera.report(file, star.line, "MINOR:C-V3")
+            elif tokens[i - 2].name == "leftparen" and tokens[i - 1].name == "space":
+                __report(star)
 
             if tokens[i + 1].name == "space":
-                vera.report(file, star.line, "MINOR:C-V3")
+                __report(star)
 
 
 if __name__ == "__main__":
     check_pointer_attachments()
 EOF
 
-cat << EOF > './utils/__init__.py'
+read -r -d './utils/__init__.py' << 'EOF'
 import re
 from dataclasses import dataclass
 from os import path
@@ -2731,6 +2665,11 @@ SQUARE_BRACKETS_TOKENS = [
     'rightbracket'
 ]
 
+BRACE_TOKENS = [
+    'leftbrace',
+    'rightbrace'
+]
+
 CONTROL_STRUCTURE_TOKENS = [
     'if',
     'else',
@@ -2740,14 +2679,17 @@ CONTROL_STRUCTURE_TOKENS = [
     'switch'
 ]
 
+COMMENT_TOKENS = [
+    'ccomment',
+    'cppcomment'
+]
+
 # Tokens that do not influence the semantic of the code
 NON_SEMANTIC_TOKENS = [
     'space',
     'space2',
     'newline',
-    'ccomment',
-    'cppcomment'
-]
+] + COMMENT_TOKENS
 
 STRUCTURE_ACCESS_OPERATORS_TOKENS = [
     'dot',
@@ -2825,7 +2767,7 @@ def debug_print(s, **kwargs):
 def __remove_between(lines: List[str], token: Token, begin_token="//", end_token=None) -> None:
     for offset, value in enumerate(token.value.split("\n")):
         line = lines[token.line - 1 + offset]
-        has_line_break = line.endswith('\\\\')
+        has_line_break = line.endswith('\\')
 
         head = line[:token.column] if offset == 0 else ""
         if (len(line) - (len(head) + len(value))) > 0:
@@ -2843,7 +2785,7 @@ def __remove_between(lines: List[str], token: Token, begin_token="//", end_token
             line = ' ' * len(line)
 
         if has_line_break:
-            line = line[:-1] + '\\\\'
+            line = line[:-1] + '\\'
 
         lines[token.line - 1 + offset] = line
 
@@ -2852,10 +2794,10 @@ def __reset_token_value(lines: List[str], token:Token) -> Token:
     value = token.value
     line = lines[token.line - 1][token.column:]
     offset = 0
-    while not line.replace('\\\\', '').replace('\n', '').startswith(value.replace('\\\\', '').replace('\n', '')) and (token.line - 1 + offset + 1) < len(lines):
+    while not line.replace('\\', '').replace('\n', '').startswith(value.replace('\\', '').replace('\n', '')) and (token.line - 1 + offset + 1) < len(lines):
         offset += 1
         line = line + '\n' + lines[token.line - 1 + offset]
-    diff = len(line.replace('\\\\', '').replace('\n', '')) - len(value.replace('\\\\', '').replace('\n', ''))
+    diff = len(line.replace('\\', '').replace('\n', '')) - len(value.replace('\\', '').replace('\n', ''))
     if diff > 0:
         line = line[:-diff]
     return Token(
@@ -2933,7 +2875,7 @@ class StarType(Enum):
 
 
 def _parse_star_left_paren(names: List[str], tok_count: int, index: int) -> StarType:
-    # lonely ptr, eg : \`*(int *(*)[])\`
+    # lonely ptr, eg : `*(int *(*)[])`
     if names[index + 1] == "rightparen":
         return StarType.LONELY
 
@@ -2946,7 +2888,7 @@ def _parse_star_left_paren(names: List[str], tok_count: int, index: int) -> Star
             return StarType.UNCLEAR
 
         # - Dereference: not followed by a leftparen or leftbracket
-        if names[index + 1] not in {"leftparen", "leftbracket"}:
+        if index + 1 < len(names) and names[index + 1] not in {"leftparen", "leftbracket"}:
             return StarType.DEREFENCE
 
         # - Function: ptr (*f)(...)
@@ -2996,7 +2938,7 @@ def get_star_token_type(tokens: Sequence["vera.Token"], index: int) -> StarType:
     # However, it is way more likely to be a pointer declaration as
     # a unassigned multiplication would be useless to the program.
 
-    # Eg: \`sfEvent *event\` vs \`a * b\`
+    # Eg: `sfEvent *event` vs `a * b`
     # We will prioterize pointer declaration for known types
     if (
         names[index + 1] in {"semicolon", "assign"}
@@ -3020,7 +2962,7 @@ def filter_out_non_semantic_tokens(tokens: List[Token]) -> List[Token]:
     return list(filter(lambda t: t.name not in NON_SEMANTIC_TOKENS, tokens))
 EOF
 
-cat << EOF > './utils/cache.py'
+read -r -d './utils/cache.py' << 'EOF'
 from functools import wraps
 
 
@@ -3054,7 +2996,7 @@ def cached_filename(func):
     return cached(lambda filename, *_, **__: filename)(func)
 EOF
 
-cat << EOF > './utils/functions/__init__.py'
+read -r -d './utils/functions/__init__.py' << 'EOF'
 import re
 from dataclasses import dataclass
 from enum import Enum
@@ -3338,10 +3280,22 @@ def is_variable_declaration(statement: list[Token]) -> UnsureBool:
         return UnsureBool.TRUE
 
     tokens_before_assign = []
-    for token in statement:
+    i = 0
+    while i < len(statement):
+        token = statement[i]
         if token.name == 'assign':
             break
-        tokens_before_assign.append(token)
+        if token.name == 'leftbracket':
+            tokens_before_assign.append(token)
+            new_i, skipped_token = skip_interval(
+                statement, statement.index(token), 'leftbracket', 'rightbracket'
+            )
+            i = new_i + 1
+            tokens_before_assign += skipped_token
+            tokens_before_assign.append(statement[new_i])
+        else:
+            tokens_before_assign.append(token)
+            i += 1
     if tokens_before_assign[0].name == 'identifier':
         if _contains_ambiguous_statement(tokens_before_assign):
             return UnsureBool.UNSURE
@@ -3478,7 +3432,7 @@ def for_each_function_with_statements(file: str, handler_func: Callable[[list[li
         handler_func(statements)
 EOF
 
-cat << EOF > './utils/functions/function.py'
+read -r -d './utils/functions/function.py' << 'EOF'
 from .section import Section
 
 class Function:
@@ -3529,7 +3483,7 @@ class Function:
         return len(self.arguments) + (1 if self.variadic else 0)
 EOF
 
-cat << EOF > './utils/functions/section.py'
+read -r -d './utils/functions/section.py' << 'EOF'
 class Section:
 
     # pylint: disable=R0913, R0902
@@ -3551,7 +3505,7 @@ class Section:
         return f'Section {self.line_start}:{self.column_start} to {self.line_end}:{self.column_end}'
 EOF
 
-cat << EOF > './utils/functions/utils.py'
+read -r -d './utils/functions/utils.py' << 'EOF'
 import re
 
 ATTRIBUTE_REGEX = re.compile(r"__attribute__\(\(\w*\)\)")
