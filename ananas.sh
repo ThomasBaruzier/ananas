@@ -56,11 +56,13 @@ main() {
         mkdir -p "$bin_dir" "$lib_dir"
         cp "$0" "$bin_dir/ananas"
         chmod +x "$bin_dir/ananas"
-        if [ -x "$lib_dir/checker" ]; then
-            echo -en '\n\e[1m> Ananas is already installed. '
-            echo -e "Please use the command 'ananas' to run it.\e[0m\n"
-            exit
-        fi
+    fi
+
+    if [ "$cur_dir" != "$bin_dir" ] && [ -x "$lib_dir/checker" ]; then
+        echo -en '\n\e[1m> Ananas is already installed. '
+        echo -e "Please use the command 'ananas' to run it.\e[0m\n"
+        rm -f "$cur_dir/$0"
+        exit
     fi
 
     if [ -x "$lib_dir/checker" ]; then
