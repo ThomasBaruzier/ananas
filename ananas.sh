@@ -152,7 +152,7 @@ package_dependencies() {
         apt update && apt -y install make cmake which git g++ tcl-dev \
             libboost-dev python python3-pip || fail
     elif [ -x /bin/pacman ]; then
-        pacman -Sy --noconfirm --needed make cmake which git
+        pacman -Sy --noconfirm --needed make cmake which git \
             gcc tcl boost python python-pip || fail
     else
         fail
