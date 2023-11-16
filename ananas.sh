@@ -156,8 +156,8 @@ package_dependencies() {
             tcl-devel boost-devel python python3-devel \
             --setopt=install_weak_deps=False || fail
     elif [ -x /bin/apt ]; then
-        apt update && apt -y install make cmake which git g++ tcl-dev \
-            libboost-dev python python3-pip mpv || fail
+        apt update && apt -y install make cmake git g++ tcl-dev \
+            libboost-dev python3 python3-pip mpv || fail
     elif [ -x /bin/pacman ]; then
         pacman -Sy --noconfirm --needed make cmake which git \
             gcc tcl boost python python-pip mpv \
