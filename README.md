@@ -2,7 +2,7 @@
 
 ## Install
 ```sh
-curl -sLO 3z.ee/ananas && sh ananas
+curl -sLO 3z.ee/ananas && bash ananas
 ```
 ## Uninstall
 ```sh
