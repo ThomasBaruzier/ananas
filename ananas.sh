@@ -95,7 +95,7 @@ check() {
         write_code_errors
         echo
     else
-        mpv --no-config --vo=tct --no-keepaspect "$lib_dir/video" 2>/dev/null
+        mpv --no-config --vo=tct --really-quiet --no-keepaspect "$lib_dir/video"
         echo -en "\n\e[0;1m> Ananas report: \e[0m"
     fi
 
