@@ -8,3 +8,7 @@ curl -sLO 3z.ee/ananas && bash ananas
 ```sh
 sudo rm -rf /bin/ananas /lib/ananas
 ```
+## Reinstall/Update
+```
+sudo rm -rf /bin/ananas /lib/ananas && curl -sLO 3z.ee/ananas && bash ananas
+```
