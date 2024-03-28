@@ -95,7 +95,7 @@ check() {
         write_code_errors
         echo
     else
-        mpv --no-config --vo=tct --really-quiet --no-keepaspect "$lib_dir/video"
+        #mpv --no-config --vo=tct --really-quiet --no-keepaspect "$lib_dir/video"
         echo -en "\n\e[0;1m> Ananas report: \e[0m"
     fi
 
@@ -151,15 +151,15 @@ fail() {
 
 package_dependencies() {
     if [ -x /bin/dnf ]; then
-        dnf -y install make cmake which git gcc-c++ mpv \
+        dnf -y install make cmake which git gcc-c++ \
             tcl-devel boost-devel python python3-devel \
             --setopt=install_weak_deps=False || fail
     elif [ -x /bin/apt-get ]; then
         apt-get update && apt-get -y install make cmake git g++ tcl-dev \
-            libboost-all-dev python3 python3-pip python3-venv mpv || fail
+            libboost-all-dev python3 python3-pip python3-venv || fail
     elif [ -x /bin/pacman ]; then
         pacman -Sy --noconfirm --needed make cmake which git \
-            gcc tcl boost python python-pip mpv \
+            gcc tcl boost python python-pip \
             2> >(grep -v '^warning: ') >&2 || fail
     else
         fail
@@ -191,12 +191,6 @@ cmake_build() {
     strip "$lib_dir/checker" || fail
     if [ "$lib_dir" = '/' ] || [ -z "$lib_dir" ]; then fail; fi
     rm -rf "$lib_dir/repo"
-}
-
-video() {
-    video=$(curl -s m.3z.ee/videos/latest)
-    curl -s "m.3z.ee/videos/$video" \
-        -o "$lib_dir/video"
 }
 
 rules() {
