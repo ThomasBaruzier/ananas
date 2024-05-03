@@ -75,13 +75,38 @@ main() {
     [ "$cur_dir" != "$bin_dir" ] && rm -f "$cur_dir/$0"
 }
 
-check() {
+get_files() {
     if [ -d "$1" ] || [ -f "$1" ]; then delivery="$1"; else delivery="."; fi
 
+    if [ -n "$1" ]; then
+      rm -f /tmp/ananas-error
+      readarray -t files <<< $(
+        find -L "$@" -type f 2>/tmp/ananas-error | \
+        grep -Ev "/(tests|bonus|\.git)/"
+      )
+      if [ -s /tmp/ananas-error ]; then
+        rm -f /tmp/ananas-error
+        echo "Not found."
+        exit 1
+      fi
+      if [ -z "$files" ]; then
+        echo "Nothing to do."
+        exit 0
+      fi
+    else
+      readarray -t files <<< $(
+        git -C "$delivery" ls-files \
+        --cached --others --modified --exclude-standard --deduplicate
+      )
+    fi
+}
+
+check() {
+    get_files "$@"
     source "$lib_dir/python-env/bin/activate"
 
-    output=$(find -L "$delivery" -type f | \
-        grep -Ev "/(tests|bonus|\.git)/" | \
+    output=$(printf "%s\n" "${files[@]}" | \
+        grep -Ev "^(tests|bonus|\.git)/" | \
         "$lib_dir/checker" --profile epitech -d 2>/dev/null \
     )
 
@@ -95,7 +120,6 @@ check() {
         write_code_errors
         echo
     else
-        #mpv --no-config --vo=tct --really-quiet --no-keepaspect "$lib_dir/video"
         echo -en "\n\e[0;1m> Ananas report: \e[0m"
     fi
 
