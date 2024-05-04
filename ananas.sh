@@ -75,41 +75,49 @@ main() {
     [ "$cur_dir" != "$bin_dir" ] && rm -f "$cur_dir/$0"
 }
 
-get_files() {
-    if [ -d "$1" ] || [ -f "$1" ]; then delivery="$1"; else delivery="."; fi
+cleanup() {
+    rm -f /tmp/ananas-error /tmp/ananas-files /tmp/ananas-output
+    [ -n "$1" ] && exit "$1"
+}
 
-    if [ -n "$1" ] || [ ! -d .git ]; then
-      rm -f /tmp/ananas-error
-      readarray -t files <<< $(
-        find -L "$@" -type f 2>/tmp/ananas-error | \
-        grep -Ev "^(tests|bonus|\.git)/"
-      )
-      if [ -s /tmp/ananas-error ]; then
-        echo "Not found."
-        exit 1
-      fi
-      if [ -z "$files" ]; then
-        echo "Nothing to do."
-        exit 0
-      fi
+get_files() {
+    local flag=0
+    [ -n "$1" ] && target="$1" || target="."
+
+    if [ -f "$target" ] || ! git -C "$target" status &>/dev/null; then
+        rm -f /tmp/ananas-error
+        find -L "$target" -type f 2>/tmp/ananas-error | sed 's:^\.\/::g' | \
+            grep -Ev "^(tests|bonus|\.git)/" >> /tmp/ananas-files
+        if [ -s /tmp/ananas-error ]; then
+            echo "Not found."
+            cleanup 1
+        fi
+        if [ ! -s /tmp/ananas-files ]; then
+            echo "Nothing to do."
+            cleanup 0
+        fi
     else
-      readarray -t files <<< $(
-        git -C "$delivery" ls-files --cached --others \
-        --modified --exclude-standard --deduplicate | \
-        grep -Ev "^(tests|bonus|\.git)/"
-      )
+        readarray -t git_ls <<< $(
+            git -C "$delivery" ls-files --exclude-standard \
+            --deduplicate --cached --others --modified | \
+            grep -Ev "^(tests|bonus|\.git)/" | grep "^$target"
+        )
+        for file in "${git_ls[@]}"; do
+            [ -f "$file" ] && echo "$file" >> /tmp/ananas-files
+        done
     fi
 }
 
 check() {
     local ret=1
-    get_files "$@"
-    source "$lib_dir/python-env/bin/activate"
+    >/tmp/ananas-files
+    [ -z "$1" ] && get_files
+    for i in "$@"; do get_files "$i"; done
     rm -f /tmp/ananas-error /tmp/ananas-output
+    source "$lib_dir/python-env/bin/activate"
 
-    printf "%s\n" "${files[@]}" | \
-        "$lib_dir/checker" --profile epitech -d \
-        2>/dev/null >> /tmp/ananas-output
+    "$lib_dir/checker" --profile epitech -d \
+        </tmp/ananas-files >> /tmp/ananas-output
 
     fatal=$(grep -c 'FATAL' /tmp/ananas-output)
     major=$(grep -c 'MAJOR' /tmp/ananas-output)
@@ -127,8 +135,7 @@ check() {
 
     echo -en "\e[31mFATAL: $fatal \e[0m- \e[33mMAJOR: $major \e[0m"
     echo -e "- \e[32mMINOR: $minor \e[0m- \e[34mINFO: $info\e[0m\n"
-    rm -f /tmp/ananas-output
-    exit "$ret"
+    cleanup "$ret"
 }
 
 write_code_errors() {
