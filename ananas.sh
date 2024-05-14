@@ -108,7 +108,6 @@ get_files() {
             echo "${target}/${file}" >> /tmp/ananas-files
         done
     fi
-    cat /tmp/ananas-files
 }
 
 check() {
