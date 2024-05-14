@@ -100,7 +100,7 @@ get_files() {
     else
         mapfile -t git_ls <<< $(
             git -C "$target" ls-files --exclude-standard \
-                --deduplicate --cached --modified | \
+                --deduplicate --cached --modified --others | \
             grep -Eve "^(tests|bonus|\.git)/" -e "/(tests|bonus|\.git)/"
         )
         for file in "${git_ls[@]}"; do
