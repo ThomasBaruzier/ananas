@@ -45,11 +45,26 @@ get_su() {
     fi
 }
 
+fail() {
+    rm -d "$tmp_dir" 2>/dev/null
+    echo -e '\n\e[31m> Something went wrong. Please report it.\e[0m\n' >&2
+    exit 1
+}
+
+cleanup() {
+    rm -f "$tmp_dir/error" "$tmp_dir/files" "$tmp_dir/output"
+    rm -d "$tmp_dir" 2>/dev/null
+    [ -n "$1" ] && exit "$1"
+}
+
 main() {
     bin_dir='/usr/bin'
     lib_dir='/usr/lib/ananas'
     cur_dir=$(readlink -f "$0")
     cur_dir="${cur_dir%/*}"
+    tmp_dir=$(mktemp -d)
+
+    [ -d "$tmp_dir" ] || fail
 
     if [ "$cur_dir" != "$bin_dir" ]; then
         get_su "$@"
@@ -75,25 +90,20 @@ main() {
     [ "$cur_dir" != "$bin_dir" ] && rm -f "$cur_dir/$0"
 }
 
-cleanup() {
-    rm -f /tmp/ananas-error /tmp/ananas-files /tmp/ananas-output
-    [ -n "$1" ] && exit "$1"
-}
-
 get_files() {
     local flag=0
 
     [ -n "$1" ] && target="${1%/}" || target="."
     if [ -f "$target" ] || ! git -C "$target" status &>/dev/null; then
-        rm -f /tmp/ananas-error
-        find -L "$target" -type f 2>/tmp/ananas-error | sed 's:^\.\/::g' | \
+        rm -f "$tmp_dir/error"
+        find -L "$target" -type f 2> "$tmp_dir/error" | sed 's:^\.\/::g' | \
             grep -Eve "^(tests|bonus|\.git)/" -e "/(tests|bonus|\.git)/" \
-            >> /tmp/ananas-files
-        if [ -s /tmp/ananas-error ]; then
+            >> "$tmp_dir/files"
+        if [ -s "$tmp_dir/error" ]; then
             echo "Not found."
             cleanup 1
         fi
-        if [ ! -s /tmp/ananas-files ]; then
+        if [ ! -s "$tmp_dir/files" ]; then
             echo "Nothing to do."
             cleanup 0
         fi
@@ -105,28 +115,28 @@ get_files() {
         )
         for file in "${git_ls[@]}"; do
             [ -f "${target}/${file}" ] && \
-            echo "${target}/${file}" >> /tmp/ananas-files
+            echo "${target}/${file}" >> "$tmp_dir/files"
         done
     fi
 }
 
 check() {
     local ret=1
-    >/tmp/ananas-files
+    > "$tmp_dir/files"
     [ -z "$1" ] && get_files
     for i in "$@"; do get_files "$i"; done
-    rm -f /tmp/ananas-error /tmp/ananas-output
+    rm -f "$tmp_dir/error" "$tmp_dir/output"
     source "$lib_dir/python-env/bin/activate"
 
     "$lib_dir/checker" --profile epitech -d \
-        </tmp/ananas-files >> /tmp/ananas-output
+        < "$tmp_dir/files" >> "$tmp_dir/output"
 
-    fatal=$(grep -c 'FATAL' /tmp/ananas-output)
-    major=$(grep -c 'MAJOR' /tmp/ananas-output)
-    minor=$(grep -c 'MINOR' /tmp/ananas-output)
-    info=$(grep -c 'INFO' /tmp/ananas-output)
+    fatal=$(grep -c 'FATAL' "$tmp_dir/output")
+    major=$(grep -c 'MAJOR' "$tmp_dir/output")
+    minor=$(grep -c 'MINOR' "$tmp_dir/output")
+    info=$(grep -c 'INFO' "$tmp_dir/output")
 
-    if [ -s /tmp/ananas-output ]; then
+    if [ -s "$tmp_dir/output" ]; then
         echo -e "\n\e[0;1m> Ananas report: \e[0m\n"
         write_code_errors
         echo
@@ -155,7 +165,7 @@ write_code_errors() {
         else
             echo "$line"
         fi
-    done < /tmp/ananas-output
+    done < "$tmp_dir/output"
 }
 
 setup() {
@@ -179,11 +189,6 @@ setup() {
     if [ -x "$lib_dir/checker" ]; then
         echo -e "\n\e[1m> The command 'ananas' is ready to use.\e[0m\n"
     else fail; fi
-}
-
-fail() {
-    echo -e '\n\e[31m> Something went wrong. Please report it.\e[0m\n' >&2
-    exit
 }
 
 package_dependencies() {
