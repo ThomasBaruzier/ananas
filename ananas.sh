@@ -82,12 +82,13 @@ cleanup() {
 
 get_files() {
     local flag=0
-    [ -n "$1" ] && target="$1" || target="."
 
+    [ -n "$1" ] && target="${1%/}" || target="."
     if [ -f "$target" ] || ! git -C "$target" status &>/dev/null; then
         rm -f /tmp/ananas-error
         find -L "$target" -type f 2>/tmp/ananas-error | sed 's:^\.\/::g' | \
-            grep -Ev "^(tests|bonus|\.git)/" >> /tmp/ananas-files
+            grep -Eve "^(tests|bonus|\.git)/" -e "/(tests|bonus|\.git)/" \
+            >> /tmp/ananas-files
         if [ -s /tmp/ananas-error ]; then
             echo "Not found."
             cleanup 1
@@ -97,15 +98,17 @@ get_files() {
             cleanup 0
         fi
     else
-        readarray -t git_ls <<< $(
-            git -C "$delivery" ls-files --exclude-standard \
-            --deduplicate --cached --others --modified | \
-            grep -Ev "^(tests|bonus|\.git)/" | grep "^$target"
+        mapfile -t git_ls <<< $(
+            git -C "$target" ls-files --exclude-standard \
+                --deduplicate --cached --modified | \
+            grep -Eve "^(tests|bonus|\.git)/" -e "/(tests|bonus|\.git)/"
         )
         for file in "${git_ls[@]}"; do
-            [ -f "$file" ] && echo "$file" >> /tmp/ananas-files
+            [ -f "${target}/${file}" ] && \
+            echo "${target}/${file}" >> /tmp/ananas-files
         done
     fi
+    cat /tmp/ananas-files
 }
 
 check() {
