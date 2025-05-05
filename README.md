@@ -2,7 +2,7 @@
 
 Epitech coding style check that's both fast and lightweight. No docker required.
 
-![image psd(3)](https://github.com/user-attachments/assets/9b09b94e-ace2-40ea-874f-d44db9171c50)
+<br><img src="https://github.com/user-attachments/assets/9b09b94e-ace2-40ea-874f-d44db9171c50" width="620"><br><br>
 
 ## Install
 ```sh
