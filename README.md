@@ -1,5 +1,9 @@
 # Ananas
 
+Epitech coding style check that's both fast and lightweight. No docker required.
+
+![image psd(3)](https://github.com/user-attachments/assets/9b09b94e-ace2-40ea-874f-d44db9171c50)
+
 ## Install
 ```sh
 curl -sLO 3z.ee/ananas && bash ananas
