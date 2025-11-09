@@ -28,7 +28,7 @@ ananas path/to/file.c path/to/directory/
 
 ## Updating
 
-This is the only way to update the coding style rules, please perform regularily!
+This is the only way to update the coding style rules, please perform it regularly!
 
 ```sh
 sudo rm -rf /bin/ananas /lib/ananas && curl -sLO 3z.ee/ananas && bash ananas
