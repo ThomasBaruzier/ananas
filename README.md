@@ -1,5 +1,10 @@
 # Ananas
 
+### ⚠️ Warning ⚠️
+### Epitech no longer uses Banana for coding style checking; it now uses EpiClang, which this project does not and will not support. Thank you for having used Ananas.
+
+---
+
 Epitech coding style checker that's both fast and lightweight. No docker required.
 
 <br><img src="https://github.com/user-attachments/assets/9b09b94e-ace2-40ea-874f-d44db9171c50" width="620"><br><br>
