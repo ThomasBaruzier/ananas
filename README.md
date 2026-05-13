@@ -12,7 +12,7 @@ Epitech coding style checker that's both fast and lightweight. No docker require
 ## Installation
 
 ```sh
-curl -sLO https://raw.githubusercontent.com/ThomasBaruzier/ananas/refs/heads/main/ananas.sh && bash ananas
+curl -sLO https://raw.githubusercontent.com/ThomasBaruzier/ananas/refs/heads/main/ananas.sh && bash ananas.sh
 ```
 
 This will install `ananas` to `/usr/bin` and its components to `/usr/lib/ananas`.
@@ -36,7 +36,7 @@ ananas path/to/file.c path/to/directory/
 This is the only way to update the coding style rules, please perform it regularly!
 
 ```sh
-sudo rm -rf /bin/ananas /lib/ananas && curl -sLO https://raw.githubusercontent.com/ThomasBaruzier/ananas/refs/heads/main/ananas.sh && bash ananas
+sudo rm -rf /bin/ananas /lib/ananas && curl -sLO https://raw.githubusercontent.com/ThomasBaruzier/ananas/refs/heads/main/ananas.sh && bash ananas.sh
 ```
 
 ## Uninstalling
